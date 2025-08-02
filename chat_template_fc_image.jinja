@@ -1,0 +1,111 @@
+{{ bos_token }}
+{%- set tools_text_block -%}
+{%- if tools -%}
+# Tools
+ 
+At each turn, if you decide to invoke any of the function(s), it should be wrapped with ```tool_code```. The python methods described below are imported and available, you can only use defined methods. The generated code should be readable and efficient. The response to a method will be wrapped in ```tool_output``` use it to call more tools or generate a helpful, friendly response. When using a ```tool_call``` think step by step why and how it should be used.
+
+The following Python methods are available:
+```python
+{%- for tool in tools %}
+def {{ tool.function.name }}(
+    {%- if tool.function.get('parameters') and tool.function.parameters.get('properties') -%}
+        {%- for param_name, param_info in tool.function.parameters.properties.items() -%}
+            {{ param_name }}: {{ param_info.type }}{{ ", " if not loop.last }}
+        {%- endfor -%}
+    {%- endif -%}
+):
+    """
+    {{ tool.function.description }}
+    {%- if tool.function.get('parameters') and tool.function.parameters.get('properties') %}
+    Args:
+    {%- for param_name, param_info in tool.function.parameters.properties.items() %}
+        {{ param_name }}: {{ param_info.description }}
+    {%- endfor %}
+    {%- endif %}
+    """
+{% endfor %}
+```
+
+You may call one or more functions to assist with the user query.
+
+{%- endif -%}
+{%- endset -%}
+
+{%- if messages and messages|length > 0 and messages[0]['role'] == 'system' -%}
+    {%- if messages[0]['content'] is string -%}
+        {%- set system_content = messages[0].get('content', '') or '' -%}
+    {%- elif messages[0]['content'] is iterable and messages[0]['content'] is not string -%}
+        {%- set system_content = messages[0]['content'][0]['text'] -%}
+    {%- else -%}
+        {%- set system_content = messages[0].get('content', '') or '' -%}
+    {%- endif -%}
+    {%- if system_content and tools_text_block.strip() -%}
+        {%- set first_user_prefix = system_content + '
+
+' + tools_text_block -%}
+    {%- elif system_content -%}
+        {%- set first_user_prefix = system_content + '
+
+' -%}
+    {%- elif tools_text_block.strip() -%}
+        {%- set first_user_prefix = tools_text_block -%}
+    {%- else -%}
+        {%- set first_user_prefix = '' -%}
+    {%- endif -%}
+    {%- set loop_messages = messages[1:] -%}
+{%- else -%}
+    {%- set first_user_prefix = tools_text_block -%}
+    {%- set loop_messages = messages -%}
+{%- endif -%}
+
+{%- for message in loop_messages -%}
+    {%- if message['role'] == 'assistant' -%}
+        {%- set role = "model" -%}
+    {%- elif message['role'] == 'tool' -%}
+        {%- set role = "user" -%}
+    {%- else -%}
+        {%- set role = "user" -%}
+    {%- endif -%}
+
+    {{ '<start_of_turn>' + role + '
+' + (first_user_prefix if loop.first else "") }}
+    {%- if message['role'] == 'user' -%}
+        {%- if message['content'] is string -%}
+{{ message['content'] }}
+        {%- elif message['content'] is iterable and message['content'] is not string -%}
+            {%- for item in message['content'] -%}
+                {%- if item['type'] == 'image' -%}
+{{ '<start_of_image>' }}
+                {%- elif item['type'] == 'text' -%}
+{{ item['text'] | trim }}
+                {%- endif -%}
+            {%- endfor -%}
+        {%- else -%}
+{{ message.get('content', '') }}
+        {%- endif -%}
+    {%- elif message['role'] == 'assistant' and message.get('tool_calls') -%}
+        {#- Convert OpenAI tool_calls to Gemma tool_code format -#}
+        {%- if message.get('content') -%}
+{{ message['content'] }}
+
+        {%- endif -%}
+        {%- for tool_call in message['tool_calls'] -%}
+```tool_code
+print({{ tool_call.function.name }}(**{{ tool_call.function.arguments }}))
+```
+        {%- endfor -%}
+    {%- elif message['role'] == 'tool' -%}
+```tool_output
+{{ message.get('content', '') }}
+```
+    {%- else -%}
+        {{ message.get('content', '') }}
+    {%- endif -%}
+    {{ '<end_of_turn>
+' }}
+{%- endfor -%}
+
+{%- if add_generation_prompt -%}
+<start_of_turn>model
+{%- endif -%}

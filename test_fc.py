@@ -364,6 +364,61 @@ def main():
         )
     )
 
+    # Test 11: Image with text content
+    results.append(
+        tester.run_test(
+            "Image with Text Content",
+            [
+                {"role": "system", "content": "You are a helpful assistant."},
+                {
+                    "role": "user",
+                    "content": [
+                        {
+                            "type": "text",
+                            "text": "Can you describe what you see in this image?",
+                        },
+                        {
+                            "type": "image_url",
+                            "image_url": {
+                                "url": "https://raw.githubusercontent.com/jerilkuriakose/gemma3-tool-calling-openai/refs/heads/main/imgs/img1.jpg"
+                            },
+                        },
+                    ],
+                },
+            ],
+            expected_behavior="Should handle image content and process normally",
+        )
+    )
+
+    # Test 12: Multiple images with text
+    results.append(
+        tester.run_test(
+            "Multiple Images with Text",
+            [
+                {"role": "system", "content": "You are a helpful assistant."},
+                {
+                    "role": "user",
+                    "content": [
+                        {"type": "text", "text": "Compare these two images:"},
+                        {
+                            "type": "image_url",
+                            "image_url": {
+                                "url": "https://raw.githubusercontent.com/jerilkuriakose/gemma3-tool-calling-openai/refs/heads/main/imgs/img1.jpg"
+                            },
+                        },
+                        {
+                            "type": "image_url",
+                            "image_url": {
+                                "url": "https://raw.githubusercontent.com/jerilkuriakose/gemma3-tool-calling-openai/refs/heads/main/imgs/img1.jpg"
+                            },
+                        },
+                    ],
+                },
+            ],
+            expected_behavior="Should process multiple images with text content",
+        )
+    )
+
     # Print summary
     print(f"\n{'=' * 80}")
     print("TEST SUMMARY")
